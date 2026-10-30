@@ -1,0 +1,5 @@
+User-Agent: *
+Allow: /
+Disallow: /thank-you/
+
+Sitemap: https://kamaldharma.com/sitemap.xml
