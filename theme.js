@@ -1,5 +1,5 @@
 /* ========================================================
-   KAMAL DHARMA - CLIENT THEME MANAGER
+   KAMAL DHARMA - CLIENT THEME MANAGER (PERSISTENT & HYDRATION-SAFE)
    ======================================================== */
 (function () {
   function getPreferredTheme() {
@@ -15,14 +15,34 @@
     return 'dark';
   }
 
+  var isUpdating = false;
   function applyTheme(theme) {
-    var root = document.documentElement;
-    if (theme === 'light') {
-      root.classList.add('light');
-      root.setAttribute('data-theme', 'light');
-    } else {
-      root.classList.remove('light');
-      root.setAttribute('data-theme', 'dark');
+    if (isUpdating) return;
+    isUpdating = true;
+    try {
+      var root = document.documentElement;
+      var body = document.body;
+      if (theme === 'light') {
+        if (!root.classList.contains('light')) {
+          root.classList.add('light');
+        }
+        if (body && !body.classList.contains('light')) {
+          body.classList.add('light');
+        }
+        if (root.getAttribute('data-theme') !== 'light') {
+          root.setAttribute('data-theme', 'light');
+        }
+      } else {
+        root.classList.remove('light');
+        if (body) {
+          body.classList.remove('light');
+        }
+        if (root.getAttribute('data-theme') !== 'dark') {
+          root.setAttribute('data-theme', 'dark');
+        }
+      }
+    } finally {
+      isUpdating = false;
     }
   }
 
@@ -50,6 +70,32 @@
 
   // Synchronously apply initial theme before first render
   applyTheme(getPreferredTheme());
+
+  // Safeguard against Next.js / React client hydration wiping HTML classes
+  if (typeof MutationObserver !== 'undefined') {
+    var observer = new MutationObserver(function () {
+      if (isUpdating) return;
+      var desired = getPreferredTheme();
+      var root = document.documentElement;
+      if (desired === 'light' && (!root.classList.contains('light') || root.getAttribute('data-theme') !== 'light')) {
+        applyTheme('light');
+      } else if (desired === 'dark' && (root.classList.contains('light') || root.getAttribute('data-theme') === 'light')) {
+        applyTheme('dark');
+      }
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'data-theme']
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    applyTheme(getPreferredTheme());
+  });
+
+  window.addEventListener('pageshow', function () {
+    applyTheme(getPreferredTheme());
+  });
 
   // Listen for storage changes across tabs
   window.addEventListener('storage', function (e) {
